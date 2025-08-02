@@ -5,11 +5,16 @@ from pybricks.robotics import DriveBase
 from pybricks.tools import wait, StopWatch
 import umath
 
+HEADING_ERROR_WINDOW_SIZE = 100
+kP_drive = 350 # for straight function
+heading_errors = []
+heading_integral = 0
+
 hub = PrimeHub()
 left_motor = Motor(Port.A, Direction.COUNTERCLOCKWISE)
 right_motor = Motor(Port.B, Direction.CLOCKWISE)
 sensor = ColorSensor(Port.D)
-db = DriveBase(right_motor,left_motor, 62.4, 144)
+db = DriveBase(left_motor, right_motor, 62.4, 144)
 db.use_gyro(True)
 BLACK = 10
 WHITE = 97
@@ -41,8 +46,8 @@ def singleLineTrackByDist(Distance, Direction="right"):
 def singleLineTrackTillIntersection(Direction="right"):
     while sensor.reflection() < 87:
         singleSensorLinetrack(Direction)
-def degToMM(degress):
-    return (degress/(2*62.4*umath.pi))
+def degToMM(degrees):
+    return (degrees / 360) * (62.4 * umath.pi)
 
 # def straight(distance): # In mm
 #     left_motor.reset_angle(0)
@@ -130,6 +135,18 @@ def calculateSpeed(
                 speed, final_speed + range_percentage / 100 * (max_speed - final_speed)
             )
         return speed
+def rebaseAngle(angle):
+  """
+  Normalizes an angle to the range of -180 to 180 degrees.
+  """
+  while angle > 180:
+    angle -= 360
+  while angle < -180:
+    angle += 360
+  return angle
+
+def rebaseIMUAngle():
+    hub.imu.reset_heading(0)
 
 def gyroDriveStraight(
         db,
@@ -143,6 +160,7 @@ def gyroDriveStraight(
         accel_dist=2,
         brake_dist=400, #150 is stable
     ):
+        global heading_errors, heading_integral
         """
         Description:
         Gyro function to drive straight
@@ -157,21 +175,24 @@ def gyroDriveStraight(
         - *track_heading* -> Set the heading to track, (Default = NA)
         - *hold* -> Indicates whether to stop the motors at the end of the straight (Default = True)
         """
-
         db.reset()
         initial_heading = hub.imu.heading()
 
         accel_percentage = abs(accel_dist / distance)
         brake_percentage = ((abs(distance) - abs(brake_dist)) / abs(distance))
 
-        left_initial_angle = db.left_motor.angle()
-        right_initial_angle = db.right_motor.angle()
-        curr_distance = db.degToMM(0)
+        left_initial_angle = left_motor.angle()
+        right_initial_angle = right_motor.angle()
+        curr_distance = degToMM(0)
 
-        print("L: ", db.left_motor.angle(), "R: ", db.right_motor.angle())
-
+        print("L: ", left_motor.angle(), "R: ", right_motor.angle())
+        log_interval = 1  # mm
+        last_logged_dist = 0
+        error_log = []
+        distance_log = []
         while abs(curr_distance) < abs(distance):
-            speed = db.calculateSpeed(
+            speed = calculateSpeed(
+                db,
                 initial_speed,
                 max_speed,
                 final_speed,
@@ -182,39 +203,46 @@ def gyroDriveStraight(
             speed_decimal = speed / 500
             if track_heading != "NA":
                 if track_heading == "TARGET":
-                    error = db.rebaseAngle(hub.imu.heading() - db.target_heading)
+                    error = rebaseAngle(hub.imu.heading() - db.target_heading)
                 else:
-                    error = db.rebaseAngle(hub.imu.heading() - track_heading)
+                    error = rebaseAngle(hub.imu.heading() - track_heading)
             else:
-                error = db.rebaseAngle(hub.imu.heading() - initial_heading)
-            db.heading_errors.append(error)
-            db.heading_integral += error
-            if len(db.heading_errors) > 100:
-                db.heading_integral -= db.heading_errors[0]
-                db.heading_errors.pop(0)
+                error = rebaseAngle(hub.imu.heading() - initial_heading)
+            heading_errors.append(error)
+            heading_integral += error
+            if len(heading_errors) > HEADING_ERROR_WINDOW_SIZE:
+                heading_integral -= db.heading_errors[0]
+                heading_errors.pop(0)
 
             heading_error = (
-                error * db.kP_drive
+                error * kP_drive
             )
 
             if distance > 0:
                 if heading_error > 0:
-                    db.left_motor.run((speed_decimal * (1500 - heading_error)) / 1)
-                    db.right_motor.run((speed_decimal * (1500)) / 1)
+                    left_motor.run((speed_decimal * (1500 - heading_error)) / 1)
+                    right_motor.run((speed_decimal * (1500)) / 1)
                 else:
-                    db.left_motor.run((speed_decimal * (1500)) / 1)
-                    db.right_motor.run((speed_decimal * (1500 + heading_error)) / 1)
+                    left_motor.run((speed_decimal * (1500)) / 1)
+                    right_motor.run((speed_decimal * (1500 + heading_error)) / 1)
             else:
                 if heading_error > 0:
-                    db.left_motor.run((speed_decimal * (-1500)) / 1)
+                    left_motor.run((speed_decimal * (-1500)) / 1)
                     db.right_motor.run((speed_decimal * (-1500 + heading_error)) / 1)
                 else:
-                    db.left_motor.run((speed_decimal * (-1500 - heading_error)) / 1)
-                    db.right_motor.run((speed_decimal * (-1500)) / 1)
+                    left_motor.run((speed_decimal * (-1500 - heading_error)) / 1)
+                    right_motor.run((speed_decimal * (-1500)) / 1)
 
-            curr_distance = db.degToMM(((db.left_motor.angle() - left_initial_angle)) / 1)
-            db.heading_errors.clear()
-            db.heading_integral = 0
+            curr_distance = degToMM(((left_motor.angle() - left_initial_angle)) / 1)
+            if abs(curr_distance - last_logged_dist) >= log_interval:
+                error_log.append(error/kP_drive)
+                distance_log.append(curr_distance)
+                last_logged_dist = curr_distance
+            heading_errors.clear()
+            heading_integral = 0
 
         
-        db.rebaseIMUAngle()
+        rebaseIMUAngle()
+        print("x_distance =", distance_log)
+        print("error_values =", error_log)
+gyroDriveStraight(db, 500)
