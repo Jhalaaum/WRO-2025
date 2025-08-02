@@ -189,7 +189,7 @@ def gyroDriveStraight(
                 error = db.rebaseAngle(hub.imu.heading() - initial_heading)
             db.heading_errors.append(error)
             db.heading_integral += error
-            if len(db.heading_errors) > HEADING_ERROR_WINDOW_SIZE:
+            if len(db.heading_errors) > 100:
                 db.heading_integral -= db.heading_errors[0]
                 db.heading_errors.pop(0)
 
