@@ -158,7 +158,7 @@ def gyroDriveStraight(
         - *hold* -> Indicates whether to stop the motors at the end of the straight (Default = True)
         """
 
-        db.db.reset()
+        db.reset()
         initial_heading = hub.imu.heading()
 
         accel_percentage = abs(accel_dist / distance)
