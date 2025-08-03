@@ -261,6 +261,7 @@ def turn(angle, max_speed=1000):
     right_motor.brake()
 
 """ For graph for KP values"""
+
 # while db.distance() < 1000:
 #     singleSensorLinetrack("left")
 #     if db.distance() - last_logged_distance >= 10:
@@ -274,5 +275,7 @@ def turn(angle, max_speed=1000):
 # print(dist_array)
 # print("\n")
 # print(error_array)
+
+
 
 """ START MAIN CODE FROM HERE """
