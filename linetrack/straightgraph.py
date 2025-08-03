@@ -5,7 +5,7 @@ x_distance = [1.089085, 2.178171, 3.267256, 4.356342, 5.445427, 6.534513, 7.6235
 plt.figure(figsize=(10, 5))
 plt.plot(x_distance, error_values, marker='o', linestyle='-', color='blue', label='Tracking Error')
 plt.axhline(0, color='gray', linestyle='--', linewidth=1)  # Optional: zero-error reference line
-plt.title("Line Tracking Error vs Distance Travelled")
+plt.title("Straight Error vs Distance Travelled")
 plt.xlabel("Distance Travelled (mm)")
 plt.ylabel("Error")
 plt.grid(True)
