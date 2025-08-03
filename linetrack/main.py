@@ -160,7 +160,7 @@ def gyroDriveStraight(
         accel_dist=2,
         brake_dist=400, #150 is stable
     ):
-        global heading_errors, heading_integral
+        global heading_errors, heading_integral, kP_drive
         """
         Description:
         Gyro function to drive straight
@@ -245,4 +245,53 @@ def gyroDriveStraight(
         rebaseIMUAngle()
         print("x_distance =", distance_log)
         print("error_values =", error_log)
-gyroDriveStraight(db, 500)
+
+def turn(angle, max_speed=1000):
+    """
+    Description:
+    Helps bot to turn a specific angle with a PD controller and controlled deceleration.
+
+    Inputs:
+    angle: angle of turn (degrees)
+    max_speed: The maximum speed of the motors during the turn (deg/s)
+    deceleration_angle: The angle (in degrees) from the target at which to start slowing down.
+    """
+    deceleration_angle=angle*(2//10)
+    kP_turn = 8.8
+    kD_turn = 5
+
+    hub.imu.reset_heading(0)
+
+    last_error = 0
+    
+    while True:
+        current_heading = hub.imu.heading()
+        error = angle - current_heading
+
+        if abs(error) < 0.05 and abs(error - last_error) < 0.01:
+            break
+
+        derivative = error - last_error
+        
+        pd_speed = (error * kP_turn) + (derivative * kD_turn)
+        
+        last_error = error
+        
+        speed_limit = max_speed
+
+        if abs(error) < deceleration_angle:
+            speed_limit = (abs(error) / deceleration_angle) * max_speed
+
+        turn_speed = umath.copysign(min(abs(pd_speed), abs(speed_limit)), pd_speed)
+        
+        if abs(error) > 1 and abs(turn_speed) < 150:
+             turn_speed = umath.copysign(150, turn_speed)
+
+        left_motor.run(turn_speed)
+        right_motor.run(-turn_speed)
+
+    left_motor.brake()
+    right_motor.brake()
+
+
+turn(180)
