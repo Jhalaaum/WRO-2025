@@ -48,39 +48,6 @@ def singleLineTrackTillIntersection(Direction="right"):
         singleSensorLinetrack(Direction)
 def degToMM(degrees):
     return (degrees / 360) * (62.4 * umath.pi)
-
-# def straight(distance): # In mm
-#     left_motor.reset_angle(0)
-#     right_motor.reset_angle(0)
-#     last_current = 0 
-#     while True:
-#         distance_traveled = (left_motor.angle() / 360) * 62.4
-#         if distance_traveled >= distance:
-#             break
-#         increment = umath.pi * umath.sin((umath.pi * distance_traveled) / 50)
-#         current = last_current + increment
-#         left_power = min(100, current)
-#         right_power = min(100, current)
-#         left_motor.dc(left_power)
-#         right_motor.dc(right_power)
-#         last_current = current      
-#     left_motor.stop()
-#     right_motor.stop()
-
-# while db.distance() < 1000:
-#     singleSensorLinetrack("left")
-#     if db.distance() - last_logged_distance >= 10:
-#         dist_array.append(last_logged_distance)
-#         reflection = sensor.reflection()
-#         error = TARGET - reflection
-#         error_array.append(error)
-#         last_logged_distance = db.distance()
-# singleLineTrackByDist(100, "left")
-# singleLineTrackTillIntersection("left")
-# print(dist_array)
-# print("\n")
-# print(error_array)
-
 def calculateSpeed(
         db,
         initial_speed,
@@ -293,5 +260,19 @@ def turn(angle, max_speed=1000):
     left_motor.brake()
     right_motor.brake()
 
+""" For graph for KP values"""
+# while db.distance() < 1000:
+#     singleSensorLinetrack("left")
+#     if db.distance() - last_logged_distance >= 10:
+#         dist_array.append(last_logged_distance)
+#         reflection = sensor.reflection()
+#         error = TARGET - reflection
+#         error_array.append(error)
+#         last_logged_distance = db.distance()
+# singleLineTrackByDist(100, "left")
+# singleLineTrackTillIntersection("left")
+# print(dist_array)
+# print("\n")
+# print(error_array)
 
-turn(180)
+""" START MAIN CODE FROM HERE """
