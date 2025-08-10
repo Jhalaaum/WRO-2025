@@ -16,36 +16,82 @@ right_motor = Motor(Port.B, Direction.CLOCKWISE)
 sensor = ColorSensor(Port.D)
 db = DriveBase(left_motor, right_motor, 62.4, 144)
 db.use_gyro(True)
-BLACK = 10
-WHITE = 97
+BLACK = 14
+WHITE = 99
 TARGET = (BLACK + WHITE) / 2
 error_array = []
 dist_array = []
 last_logged_distance = 0
 last_error = 0
 
-def singleSensorLinetrack(Direction="right"):
+def singleSensorLinetrack(Direction="right", baseSpeed=670):
+    """
+    Follows a line using a single color sensor with a variable base speed.
+    """
     global last_error
-    baseSpeed = 670
     reflection = sensor.reflection()
     error = TARGET - reflection
     kP = 2.5
     kD = 1.2
     derivative = error - last_error
-    steering_value = kP*error + kD*derivative
+    steering_value = kP * error + kD * derivative
+
     if Direction == "right":
         right_motor.run(baseSpeed - steering_value)
         left_motor.run(baseSpeed + steering_value)
     else:
         left_motor.run(baseSpeed - steering_value)
-        right_motor.run(baseSpeed + steering_value) 
+        right_motor.run(baseSpeed + steering_value)
+    
     last_error = error
-def singleLineTrackByDist(Distance, Direction="right"):
-    while db.distance() < Distance:
-        singleSensorLinetrack(Direction)
+def singleLineTrackByDist(
+    Distance,
+    Direction="right",
+    initial_speed=150,
+    max_speed=670,
+    final_speed=100,
+    accel_dist=60,
+    brake_dist=60
+):
+    """
+    Tracks a line for a specific distance with controlled acceleration and deceleration.
+    """
+    left_motor.reset_angle(0)
+    right_motor.reset_angle(0)
+    
+    current_distance = 0
+    
+    if abs(Distance) == 0:
+        return
+
+    accel_percentage = abs(accel_dist / Distance)
+    brake_percentage = (abs(Distance) - abs(brake_dist)) / abs(Distance)
+    
+    while abs(current_distance) < abs(Distance):
+        driven_percentage = abs(current_distance / Distance)
+
+        current_speed = calculateSpeed(
+            db,
+            initial_speed,
+            max_speed,
+            final_speed,
+            accel_percentage,
+            brake_percentage,
+            driven_percentage,
+        )
+        
+        singleSensorLinetrack(current_speed, Direction)
+        
+        avg_motor_angle = (left_motor.angle() + right_motor.angle()) / 2
+        current_distance = degToMM(avg_motor_angle)
+
+    left_motor.brake()
+    right_motor.brake()
 def singleLineTrackTillIntersection(Direction="right"):
-    while sensor.reflection() < 87:
+    while sensor.reflection() > 20:
         singleSensorLinetrack(Direction)
+    left_motor.brake()
+    right_motor.brake()
 def degToMM(degrees):
     return (degrees / 360) * (62.4 * umath.pi)
 def calculateSpeed(
@@ -210,8 +256,10 @@ def gyroDriveStraight(
 
         
         rebaseIMUAngle()
-        print("x_distance =", distance_log)
-        print("error_values =", error_log)
+        left_motor.brake()
+        right_motor.brake()
+        # print("x_distance =", distance_log)
+        # print("error_values =", error_log)
 
 def turn(angle, max_speed=1000):
     """
@@ -279,3 +327,52 @@ def turn(angle, max_speed=1000):
 
 
 """ START MAIN CODE FROM HERE """
+# At new location
+# while True:
+#     print(sensor.reflection())
+# at starting point --> balls picking up and depositing thingy
+# assuming +ve angle is right turn
+turn(90, 100)
+turn(-45)
+gyroDriveStraight(db, 80)
+singleLineTrackByDist(50)
+singleLineTrackTillIntersection(Direction="left")
+# gyroDriveStraight(db, 50)
+# turn(-90, 100)
+# singleLineTrackByDist(200)
+# singleLineTrackTillIntersection()
+# gyroDriveStraight(db, 50)
+# turn(-90, 100)
+# #claw go down then track to intersection to pick up balls 
+# singleLineTrackByDist(40)
+# singleLineTrackTillIntersection()
+# gyroDriveStraight(db, 80)
+# #picked up balls then move back to deposit
+# gyroDriveStraight(db, -95)
+# turn(180, 100)
+# singleLineTrackByDist(40)
+# singleLineTrackTillIntersection()
+# gyroDriveStraight(db, 50)
+# turn(-90, 100)
+# singleLineTrackByDist(200)
+# singleLineTrackTillIntersection()
+# gyroDriveStraight(db, 50)
+# turn(-90, 100)
+# singleLineTrackByDist(40)
+# singleLineTrackTillIntersection()
+# # bot reached intersection for deposition, depositing now
+# gyroDriveStraight(db, 80)
+# #deposited block, going back to push down blue thingy in the middle of the map
+# gyroDriveStraight(db, -95)
+# turn(180, 100)
+# singleLineTrackByDist(40)
+# singleLineTrackTillIntersection()
+# gyroDriveStraight(db, 50)
+# turn(90, 100)
+# singleLineTrackByDist(200)
+# singleLineTrackTillIntersection()
+# gyroDriveStraight(db, 50)
+# turn(-90, 100)
+# singleLineTrackByDist(40)
+# singleLineTrackTillIntersection()
+# # reached intersection of blue thingy --> claw down
