@@ -80,7 +80,7 @@ def singleLineTrackByDist(
             driven_percentage,
         )
         
-        singleSensorLinetrack(current_speed, Direction)
+        singleSensorLinetrack(Direction, current_speed)
         
         avg_motor_angle = (left_motor.angle() + right_motor.angle()) / 2
         current_distance = degToMM(avg_motor_angle)
@@ -335,7 +335,8 @@ def turn(angle, max_speed=1000):
 turn(90, 100)
 turn(-45)
 gyroDriveStraight(db, 80)
-singleLineTrackByDist(50)
+turn(45)
+singleLineTrackByDist(50, Direction="left")
 singleLineTrackTillIntersection(Direction="left")
 # gyroDriveStraight(db, 50)
 # turn(-90, 100)
