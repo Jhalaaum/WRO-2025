@@ -327,13 +327,12 @@ def turn(angle, max_speed=1000):
 
 
 """ START MAIN CODE FROM HERE """
-# At new location
+# At new locations
 # while True:
 #     print(sensor.reflection())
 # at starting point --> balls picking up and depositing thingy
 # assuming +ve angle is right turn
-turn(90, 100)
-turn(-45)
+turn(45, 100)
 gyroDriveStraight(db, 80)
 turn(45)
 singleLineTrackByDist(50, Direction="left")
