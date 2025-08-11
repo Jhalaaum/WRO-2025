@@ -327,7 +327,7 @@ def turn(angle, max_speed=1000):
 
 
 """ START MAIN CODE FROM HERE """
-# At new locations
+# At new location
 # while True:
 #     print(sensor.reflection())
 # at starting point --> balls picking up and depositing thingy
