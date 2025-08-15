@@ -14,10 +14,12 @@ hub = PrimeHub()
 left_motor = Motor(Port.A, Direction.COUNTERCLOCKWISE)
 right_motor = Motor(Port.B, Direction.CLOCKWISE)
 sensor = ColorSensor(Port.D)
+claw = Motor(Port.F)
+side_sensor = ColorSensor(Port.C)
 db = DriveBase(left_motor, right_motor, 62.4, 144)
 db.use_gyro(True)
-BLACK = 14
-WHITE = 99
+BLACK = 13
+WHITE = 97
 TARGET = (BLACK + WHITE) / 2
 error_array = []
 dist_array = []
@@ -32,7 +34,7 @@ def singleSensorLinetrack(Direction="right", baseSpeed=670):
     reflection = sensor.reflection()
     error = TARGET - reflection
     kP = 2.5
-    kD = 1.2
+    kD = 10
     derivative = error - last_error
     steering_value = kP * error + kD * derivative
 
@@ -85,13 +87,13 @@ def singleLineTrackByDist(
         avg_motor_angle = (left_motor.angle() + right_motor.angle()) / 2
         current_distance = degToMM(avg_motor_angle)
 
-    left_motor.brake()
-    right_motor.brake()
-def singleLineTrackTillIntersection(Direction="right"):
+    left_motor.hold()
+    right_motor.hold()
+def singleLineTrackTillIntersection(Direction="right", baseSpeed=670):
     while sensor.reflection() > 20:
-        singleSensorLinetrack(Direction)
-    left_motor.brake()
-    right_motor.brake()
+        singleSensorLinetrack(Direction, baseSpeed=baseSpeed)
+    left_motor.hold()
+    right_motor.hold()
 def degToMM(degrees):
     return (degrees / 360) * (62.4 * umath.pi)
 def calculateSpeed(
@@ -241,7 +243,7 @@ def gyroDriveStraight(
             else:
                 if heading_error > 0:
                     left_motor.run((speed_decimal * (-1500)) / 1)
-                    db.right_motor.run((speed_decimal * (-1500 + heading_error)) / 1)
+                    right_motor.run((speed_decimal * (-1500 + heading_error)) / 1)
                 else:
                     left_motor.run((speed_decimal * (-1500 - heading_error)) / 1)
                     right_motor.run((speed_decimal * (-1500)) / 1)
@@ -256,8 +258,8 @@ def gyroDriveStraight(
 
         
         rebaseIMUAngle()
-        left_motor.brake()
-        right_motor.brake()
+        left_motor.hold()
+        right_motor.hold()
         # print("x_distance =", distance_log)
         # print("error_values =", error_log)
 
@@ -305,12 +307,12 @@ def turn(angle, max_speed=1000):
         left_motor.run(turn_speed)
         right_motor.run(-turn_speed)
 
-    left_motor.brake()
-    right_motor.brake()
+    left_motor.hold()
+    right_motor.hold()
 
 """ For graph for KP values"""
 
-# while db.distance() < 1000:
+# while db.distance() < 200:
 #     singleSensorLinetrack("left")
 #     if db.distance() - last_logged_distance >= 10:
 #         dist_array.append(last_logged_distance)
@@ -332,22 +334,47 @@ def turn(angle, max_speed=1000):
 #     print(sensor.reflection())
 # at starting point --> balls picking up and depositing thingy
 # assuming +ve angle is right turn
-turn(45, 100)
+claw.run_until_stalled(-300)
 gyroDriveStraight(db, 80)
-turn(45)
 singleLineTrackByDist(50, Direction="left")
 singleLineTrackTillIntersection(Direction="left")
-gyroDriveStraight(db, 80)
-turn(-90, 100)
-singleLineTrackByDist(200)
+gyroDriveStraight(db, 90)
+turn(-90)
+wait(100)
+singleLineTrackByDist(100)
 singleLineTrackTillIntersection()
 gyroDriveStraight(db, 80)
-turn(-90, 100)
-# #claw go down then track to intersection to pick up balls 
-# singleLineTrackByDist(40)
-# singleLineTrackTillIntersection()
+turn(90)
+wait(100)
+gyroDriveStraight(db, -40)
+claw.run_until_stalled(300)
+wait(100)
+gyroDriveStraight(db, -110)
+claw.run_until_stalled(-300)
+wait(100)
+gyroDriveStraight(db, 20)
+wait(100)
+claw.run_until_stalled(300)
+gyroDriveStraight(db, -30)
+wait(100)
+gyroDriveStraight(db, 150)
+claw.run_angle(100, -20)
+turn(-135)
+gyroDriveStraight(db, 95)
+turn(45)
+wait(100)
+singleLineTrackByDist(200, "left", max_speed=300)
+singleLineTrackTillIntersection("left", baseSpeed=300)
+turn(90)
+wait(100)
+claw.run_angle()
+gyroDriveStraight(30)
+
+# Pull down rover
+
+#Bring down claw for balls
+
 # gyroDriveStraight(db, 80)
-# #picked up balls then move back to deposit
 # gyroDriveStraight(db, -95)
 # turn(180, 100)
 # singleLineTrackByDist(40)
