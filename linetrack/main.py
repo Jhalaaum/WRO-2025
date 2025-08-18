@@ -6,7 +6,7 @@ from pybricks.tools import wait, StopWatch
 import umath
 
 HEADING_ERROR_WINDOW_SIZE = 100
-kP_drive = 350 # for straight function
+kP_drive = 400 # for straight function
 heading_errors = []
 heading_integral = 0
 
@@ -273,8 +273,8 @@ def turn(angle, max_speed=1000):
     max_speed: The maximum speed of the motors during the turn (deg/s)
     deceleration_angle: The angle (in degrees) from the target at which to start slowing down.
     """
-    deceleration_angle=angle*(2//10)
-    kP_turn = 8.8
+    deceleration_angle=angle*0.3
+    kP_turn = 9.8
     kD_turn = 5
 
     hub.imu.reset_heading(0)
@@ -309,6 +309,33 @@ def turn(angle, max_speed=1000):
 
     left_motor.hold()
     right_motor.hold()
+def straightTillIntersection(db, speed=200, track_heading="NA"):
+    """
+    Drives straight using the gyro until a line is detected by the color sensor.
+
+    This function continuously checks the color sensor while simultaneously using the
+    gyro to maintain a straight path.
+
+    Args:
+        db (DriveBase): The DriveBase object for the robot.
+        speed (int): The forward speed for the robot (in mm/s).
+        track_heading (int or str): The target heading to maintain. Defaults to 'NA',
+                                    which uses the heading at the start of the function.
+    """
+    kP_gyro = 1.2
+
+    if track_heading == "NA":
+        target_heading = hub.imu.heading()
+    else:
+        target_heading = track_heading
+
+    db.drive(speed, 0)
+    while sensor.reflection() > 20:
+        error = rebaseAngle(hub.imu.heading() - target_heading)
+        turn_rate = error * kP_gyro
+        db.drive(speed, turn_rate)
+        wait(10)
+    db.stop()
 
 """ For graph for KP values"""
 
@@ -340,36 +367,45 @@ singleLineTrackByDist(50, Direction="left")
 singleLineTrackTillIntersection(Direction="left")
 gyroDriveStraight(db, 90)
 turn(-90)
+rebaseIMUAngle()
 wait(100)
 singleLineTrackByDist(100)
 singleLineTrackTillIntersection()
 gyroDriveStraight(db, 80)
+wait(100)
+rebaseIMUAngle()
 turn(90)
+rebaseIMUAngle()
 wait(100)
 gyroDriveStraight(db, -40)
 claw.run_until_stalled(300)
+rebaseIMUAngle()
 wait(100)
 gyroDriveStraight(db, -110)
 claw.run_until_stalled(-300)
+rebaseIMUAngle()
 wait(100)
 gyroDriveStraight(db, 20)
+rebaseIMUAngle()
 wait(100)
 claw.run_until_stalled(300)
 gyroDriveStraight(db, -30)
+rebaseIMUAngle()
 wait(100)
-gyroDriveStraight(db, 150)
+gyroDriveStraight(db, 210)
 claw.run_angle(100, -20)
 turn(-135)
 gyroDriveStraight(db, 95)
 turn(45)
+rebaseIMUAngle()
 wait(100)
 singleLineTrackByDist(200, "left", max_speed=300)
 singleLineTrackTillIntersection("left", baseSpeed=300)
+gyroDriveStraight(db, 130)
 turn(90)
+rebaseIMUAngle()
 wait(100)
-claw.run_angle()
-gyroDriveStraight(30)
-
+straightTillIntersection(db)
 # Pull down rover
 
 #Bring down claw for balls
