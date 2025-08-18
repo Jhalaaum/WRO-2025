@@ -274,8 +274,8 @@ def turn(angle, max_speed=1000):
     deceleration_angle: The angle (in degrees) from the target at which to start slowing down.
     """
     deceleration_angle=angle*0.3
-    kP_turn = 9.8
-    kD_turn = 5
+    kP_turn = 10.8
+    kD_turn = 8
 
     hub.imu.reset_heading(0)
 
@@ -322,7 +322,7 @@ def straightTillIntersection(db, speed=200, track_heading="NA"):
         track_heading (int or str): The target heading to maintain. Defaults to 'NA',
                                     which uses the heading at the start of the function.
     """
-    kP_gyro = 1.2
+    kP_gyro = 0.8
 
     if track_heading == "NA":
         target_heading = hub.imu.heading()
@@ -336,6 +336,7 @@ def straightTillIntersection(db, speed=200, track_heading="NA"):
         db.drive(speed, turn_rate)
         wait(10)
     db.stop()
+
 
 """ For graph for KP values"""
 
@@ -365,12 +366,12 @@ claw.run_until_stalled(-300)
 gyroDriveStraight(db, 80)
 singleLineTrackByDist(50, Direction="left")
 singleLineTrackTillIntersection(Direction="left")
-gyroDriveStraight(db, 90)
+gyroDriveStraight(db, 95)
 turn(-90)
 rebaseIMUAngle()
 wait(100)
-singleLineTrackByDist(100)
-singleLineTrackTillIntersection()
+singleLineTrackByDist(100, max_speed=300)
+singleLineTrackTillIntersection(baseSpeed=300)
 gyroDriveStraight(db, 80)
 wait(100)
 rebaseIMUAngle()
@@ -401,41 +402,22 @@ rebaseIMUAngle()
 wait(100)
 singleLineTrackByDist(200, "left", max_speed=300)
 singleLineTrackTillIntersection("left", baseSpeed=300)
-gyroDriveStraight(db, 130)
+gyroDriveStraight(db, 140)
 turn(90)
 rebaseIMUAngle()
 wait(100)
 straightTillIntersection(db)
-# Pull down rover
-
-#Bring down claw for balls
-
-# gyroDriveStraight(db, 80)
-# gyroDriveStraight(db, -95)
-# turn(180, 100)
-# singleLineTrackByDist(40)
-# singleLineTrackTillIntersection()
-# gyroDriveStraight(db, 50)
-# turn(-90, 100)
-# singleLineTrackByDist(200)
-# singleLineTrackTillIntersection()
-# gyroDriveStraight(db, 50)
-# turn(-90, 100)
-# singleLineTrackByDist(40)
-# singleLineTrackTillIntersection()
-# # bot reached intersection for deposition, depositing now
-# gyroDriveStraight(db, 80)
-# #deposited block, going back to push down blue thingy in the middle of the map
-# gyroDriveStraight(db, -95)
-# turn(180, 100)
-# singleLineTrackByDist(40)
-# singleLineTrackTillIntersection()
-# gyroDriveStraight(db, 50)
-# turn(90, 100)
-# singleLineTrackByDist(200)
-# singleLineTrackTillIntersection()
-# gyroDriveStraight(db, 50)
-# turn(-90, 100)
-# singleLineTrackByDist(40)
-# singleLineTrackTillIntersection()
-# # reached intersection of blue thingy --> claw down
+wait(100)
+rebaseIMUAngle()
+gyroDriveStraight(db, 220)
+claw.run_until_stalled(-300)
+turn(90)
+wait(100)
+rebaseIMUAngle()
+db.straight(-200)
+wait(100)
+rebaseIMUAngle()
+gyroDriveStraight(db, 100)
+turn(180)
+wait(100)
+rebaseIMUAngle()
