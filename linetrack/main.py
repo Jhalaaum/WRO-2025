@@ -9,6 +9,7 @@ HEADING_ERROR_WINDOW_SIZE = 100
 kP_drive = 400 # for straight function
 heading_errors = []
 heading_integral = 0
+Axle_track = 120
 
 hub = PrimeHub()
 left_motor = Motor(Port.A, Direction.COUNTERCLOCKWISE)
@@ -16,7 +17,8 @@ right_motor = Motor(Port.B, Direction.CLOCKWISE)
 sensor = ColorSensor(Port.D)
 claw = Motor(Port.F)
 side_sensor = ColorSensor(Port.C)
-db = DriveBase(left_motor, right_motor, 62.4, 144)
+db = DriveBase(left_motor, right_motor, 62.4, Axle_track)
+
 db.use_gyro(True)
 BLACK = 13
 WHITE = 97
@@ -96,6 +98,9 @@ def singleLineTrackTillIntersection(Direction="right", baseSpeed=670):
     right_motor.hold()
 def degToMM(degrees):
     return (degrees / 360) * (62.4 * umath.pi)
+def mmToDeg(mm):
+    return (mm/(62.4 * umath.pi))*360
+
 def calculateSpeed(
         db,
         initial_speed,
@@ -263,7 +268,7 @@ def gyroDriveStraight(
         # print("x_distance =", distance_log)
         # print("error_values =", error_log)
 
-def turn(angle, max_speed=1000):
+def turn(angle, max_speed=500):
     """
     Description:
     Helps bot to turn a specific angle with a PD controller and controlled deceleration.
@@ -274,8 +279,8 @@ def turn(angle, max_speed=1000):
     deceleration_angle: The angle (in degrees) from the target at which to start slowing down.
     """
     deceleration_angle=angle*0.3
-    kP_turn = 10.8
-    kD_turn = 8
+    kP_turn = 16.8
+    kD_turn = 15
 
     hub.imu.reset_heading(0)
 
@@ -393,9 +398,7 @@ def scan_and_report_colors(db, color_sensor):
 
     for position_index in range(1, 7):
         gyroDriveStraight(db, distance=-95, max_speed=300, final_speed=100)
-        
-        # Wait a moment for the robot to settle for a clear reading.
-        wait(1000)
+        rebaseIMUAngle()
         
         # Get the color name from our helper function.
         detected_color = get_detected_color(color_sensor)
@@ -422,30 +425,33 @@ def scan_and_report_colors(db, color_sensor):
 
     return (green_white_positions, red_yellow_positions)
 
-def drive_curve(db, radius, angle, speed=200):
-    """
-    Drives the robot along a curve with a specific speed, radius, and angle.
+def oneWheelMotorTurn(
+        db,
+        angle,
+        direction=1,
+        hold=True,
+        speed=700
+    ):
+        rotation_angle = mmToDeg(2 * umath.pi * Axle_track * (abs(angle)/360))
 
-    This is a blocking function, meaning your code will wait here until the
-    curve is complete.
+        left_angle = left_motor.angle()
+        right_angle = right_motor.angle()
 
-    Args:
-        db (DriveBase): The DriveBase object for the robot.
-        speed (int): The speed along the curved path (in mm/s).
-                     Use a positive value for forward, negative for backward.
-        radius (int): The radius of the curve in mm. 
-                      A positive radius steers to the right of the direction of travel.
-                      A negative radius steers to the left. Cannot be zero.
-        angle (int): The angle of the arc to travel in degrees. The absolute
-                     value determines how far to turn. The sign is ignored.
-    """
-    if radius == 0 or speed == 0 or angle == 0:
-        return
-    turn_rate = umath.degrees(speed / radius)
-    db.reset()
-    db.drive(speed, turn_rate)
-    while abs(db.angle()) < abs(angle):
-        wait(10)
+        if angle > 0:
+            if direction == 1 or direction == "FORWARD" or direction == "FRONT":
+                #self.left_motor.run_target(speed, left_angle+rotation_angle, Stop.HOLD)
+                left_motor.run_angle(speed, rotation_angle, Stop.HOLD)
+            else:
+                #self.right_motor.run_target(speed, left_angle-rotation_angle, Stop.HOLD)
+                right_motor.run_angle(speed, -(rotation_angle), Stop.HOLD)
+        
+        else:
+            if direction == 1 or direction == "FORWARD" or direction == "FRONT":
+                #self.right_motor.run_target(speed, left_angle+rotation_angle, Stop.HOLD)
+                right_motor.run_angle(speed, rotation_angle, Stop.HOLD)
+            else:
+                #self.left_motor.run_target(speed, left_angle-rotation_angle, Stop.HOLD)
+                left_motor.run_angle(speed, -(rotation_angle), Stop.HOLD)
 """ For graph for KP values"""
 
 # while db.distance() < 200:
@@ -480,14 +486,14 @@ rebaseIMUAngle()
 wait(100)
 singleLineTrackByDist(100, max_speed=300)
 singleLineTrackTillIntersection(baseSpeed=300)
-gyroDriveStraight(db, 80)
+gyroDriveStraight(db, 85)
 wait(100)
 rebaseIMUAngle()
 turn(90)
 rebaseIMUAngle()
 wait(100)
+claw.run_angle(100, 120)
 gyroDriveStraight(db, -40)
-claw.run_until_stalled(300)
 rebaseIMUAngle()
 wait(100)
 gyroDriveStraight(db, -110)
@@ -504,7 +510,7 @@ wait(100)
 gyroDriveStraight(db, 210)
 claw.run_angle(100, -20)
 turn(-135)
-gyroDriveStraight(db, 95)
+gyroDriveStraight(db, 190)
 turn(45)
 rebaseIMUAngle()
 wait(100)
@@ -517,7 +523,7 @@ wait(100)
 straightTillIntersection(db)
 wait(100)
 rebaseIMUAngle()
-gyroDriveStraight(db, 205)
+gyroDriveStraight(db, 198)
 claw.run_until_stalled(-300)
 turn(90)
 wait(100)
@@ -526,13 +532,15 @@ db.straight(-200)
 wait(100)
 rebaseIMUAngle()
 gyroDriveStraight(db, 100)
+wait(100)
 turn(180)
 wait(100)
 rebaseIMUAngle()
-gyroDriveStraight(db, -130)
+gyroDriveStraight(db, -120)
 scan_and_report_colors(db, side_sensor)
-drive_curve(db, 125, 90, speed=-50)
-wait(250)
+gyroDriveStraight(db, -50)
+oneWheelMotorTurn(db, -125, 90, speed=500)
+wait(1000)
 rebaseIMUAngle()
 turn(180)
 wait(100)
@@ -540,37 +548,3 @@ rebaseIMUAngle()
 gyroDriveStraight(db, -300)
 claw.run_until_stalled(300)
 gyroDriveStraight(db, -700)
-
-# Pull down rover
-
-#Bring down claw for balls
-
-# gyroDriveStraight(db, 80)
-# gyroDriveStraight(db, -95)
-# turn(180, 100)
-# singleLineTrackByDist(40)
-# singleLineTrackTillIntersection()
-# gyroDriveStraight(db, 50)
-# turn(-90, 100)
-# singleLineTrackByDist(200)
-# singleLineTrackTillIntersection()
-# gyroDriveStraight(db, 50)
-# turn(-90, 100)
-# singleLineTrackByDist(40)
-# singleLineTrackTillIntersection()
-# # bot reached intersection for deposition, depositing now
-# gyroDriveStraight(db, 80)
-# #deposited block, going back to push down blue thingy in the middle of the map
-# gyroDriveStraight(db, -95)
-# turn(180, 100)
-# singleLineTrackByDist(40)
-# singleLineTrackTillIntersection()
-# gyroDriveStraight(db, 50)
-# turn(90, 100)
-# singleLineTrackByDist(200)
-# singleLineTrackTillIntersection()
-# gyroDriveStraight(db, 50)
-# turn(-90, 100)
-# singleLineTrackByDist(40)
-# singleLineTrackTillIntersection()
-# # reached intersection of blue thingy --> claw down
