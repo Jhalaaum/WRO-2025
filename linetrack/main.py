@@ -358,18 +358,12 @@ def get_detected_color(color_sensor):
     """
     hsv = color_sensor.hsv()
     h, s, v = hsv.h, hsv.s, hsv.v
-
-    # --- CALIBRATE THESE VALUES ---
-    # White: Low Saturation, High Value
     if s < 25 and v > 80:
         return "White"
-    # Red: Hue is around 0/360. It wraps around.
     if (h > 340 or h < 15) and s > 60 and v > 50:
         return "Red"
-    # Yellow: Hue is around 60.
     if 30 < h < 75 and s > 45 and v > 50:
         return "Yellow"
-    # Green: Hue is around 120.
     if 110 < h < 170 and s > 50 and v > 30:
         return "Green"
     
@@ -399,19 +393,14 @@ def scan_and_report_colors(db, color_sensor):
     for position_index in range(1, 7):
         gyroDriveStraight(db, distance=-95, max_speed=300, final_speed=100)
         rebaseIMUAngle()
-        
-        # Get the color name from our helper function.
         detected_color = get_detected_color(color_sensor)
         
         if detected_color:
             print(f"Position {position_index}: Found {detected_color}!")
-            # Store the position (1-6) of the detected color.
             detected_locations[detected_color] = position_index
         else:
             print(f"Position {position_index}: No target block found.")
-    # [index 0: Green, index 1: White]
     arrayOfPositions = [None, None]
-    # [index 0: Yellow, index 1: Red]
     red_yellow_positions = [None, None]
     arrayOfPositions[0] = detected_locations.get("Green")
     arrayOfPositions[1] = detected_locations.get("White")
@@ -488,7 +477,6 @@ def go_and_pickup(arrayOfPos):
         6: 237.5,   # 2.5 * 95
     }
 
-    # This list is NOT sorted. It will be processed sequentially.
     positions_to_visit = arrayOfPos
 
     if not any(pos is not None for pos in positions_to_visit):
@@ -497,17 +485,13 @@ def go_and_pickup(arrayOfPos):
 
     print(f"Starting pickup sequence in specified order: {positions_to_visit}")
 
-    # --- Start of Mission ---
     current_x_position = 0
 
-    # 1. Initial turn to become parallel with the line of blocks
     print("Turning parallel to the line...")
-    turn(90)  # Turning Right
+    turn(90)
     rebaseIMUAngle()
 
-    # 2. Loop through each block position in the given order
     for position in positions_to_visit:
-        # Skip if the block was not found during the scan
         if position is None:
             print("Skipping a 'None' position in the array.")
             continue
@@ -518,36 +502,29 @@ def go_and_pickup(arrayOfPos):
             print(f"Invalid position detected: {position}. Skipping.")
             continue
 
-        # Calculate distance to travel along the line from the current spot
         distance_to_travel = target_dist - current_x_position
         
         print(f"Traveling {distance_to_travel}mm along the line to position {position}...")
         gyroDriveStraight(db, distance_to_travel, max_speed=400)
         rebaseIMUAngle()
         
-        # Update the robot's current position on the line
         current_x_position = target_dist
 
-        # Turn to face the block
-        turn(-90) # Turn Left
+        turn(-90)
         rebaseIMUAngle()
         
-        # Execute the pickup sequence (forward, grab, back)
         print("Picking up block...")
         pickup_sequence()
         
-        # Turn back to be parallel with the line, ready for the next move
-        turn(90) # Turn Right
+        turn(90)
         rebaseIMUAngle()
 
-    # 3. After attempting to pick up all blocks, return to the center start point
     print("All blocks in sequence addressed. Returning to center...")
     return_distance = 0 - current_x_position
     gyroDriveStraight(db, return_distance, max_speed=400)
     rebaseIMUAngle()
 
-    # 4. Final turn to face the line again (original orientation)
-    turn(-90) # Turn Left
+    turn(-90)
     rebaseIMUAngle()
     
     print("Pickup mission complete.")
