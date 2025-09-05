@@ -6,11 +6,9 @@ from pybricks.tools import wait, StopWatch
 import umath
 
 HEADING_ERROR_WINDOW_SIZE = 100
-kP_drive = 400 # for straight function
-kD_drive = 1500
 heading_errors = []
 heading_integral = 0
-Axle_track = 127
+Axle_track = 120
 
 hub = PrimeHub()
 left_motor = Motor(Port.A, Direction.COUNTERCLOCKWISE)
@@ -21,7 +19,7 @@ side_sensor = ColorSensor(Port.C)
 db = DriveBase(left_motor, right_motor, 62.4, Axle_track)
 
 db.use_gyro(True)
-BLACK = 13
+BLACK = 12
 WHITE = 97
 TARGET = (BLACK + WHITE) / 2
 error_array = []
@@ -36,9 +34,8 @@ def singleSensorLinetrack(Direction="right", baseSpeed=670):
     global last_error
     reflection = sensor.reflection()
     error = TARGET - reflection
-    kP = 4
-    kD = 65
-
+    kP = 2.5
+    kD = 10
     derivative = error - last_error
     steering_value = kP * error + kD * derivative
 
@@ -53,7 +50,11 @@ def singleSensorLinetrack(Direction="right", baseSpeed=670):
 def singleLineTrackByDist(
     Distance,
     Direction="right",
-    current_speed=670,
+    initial_speed=150,
+    max_speed=670,
+    final_speed=100,
+    accel_dist=60,
+    brake_dist=60
 ):
     """
     Tracks a line for a specific distance with controlled acceleration and deceleration.
@@ -66,9 +67,22 @@ def singleLineTrackByDist(
     if abs(Distance) == 0:
         return
 
+    accel_percentage = abs(accel_dist / Distance)
+    brake_percentage = (abs(Distance) - abs(brake_dist)) / abs(Distance)
     
     while abs(current_distance) < abs(Distance):
+        driven_percentage = abs(current_distance / Distance)
 
+        current_speed = calculateSpeed(
+            db,
+            initial_speed,
+            max_speed,
+            final_speed,
+            accel_percentage,
+            brake_percentage,
+            driven_percentage,
+        )
+        
         singleSensorLinetrack(Direction, current_speed)
         
         avg_motor_angle = (left_motor.angle() + right_motor.angle()) / 2
@@ -161,11 +175,13 @@ def gyroDriveStraight(
         track_heading="NA",
         initial_speed=200,
         max_speed=670,
-        final_speed=75,
-        accel_dist=100,
+        final_speed=100,
+        accel_dist=200,
         brake_dist=300,
     ):
-        global heading_errors, heading_integral, kP_drive, kD_drive
+        global heading_errors, heading_integral
+        kP_drive = 400
+        kD_drive = 1500
         """
         Description:
         Gyro function to drive straight
@@ -242,7 +258,7 @@ def gyroDriveStraight(
 
             curr_distance = degToMM(((left_motor.angle() - left_initial_angle)) / 1)
             if abs(curr_distance - last_logged_dist) >= log_interval:
-                # error_log.append(error/kP_drive)
+                # error_log.append(error)
                 # distance_log.append(curr_distance)
                 last_logged_dist = curr_distance
             heading_errors.clear()
@@ -255,6 +271,7 @@ def gyroDriveStraight(
         right_motor.hold()
         # print("x_distance =", distance_log)
         # print("error_values =", error_log)
+
 
 def turn(angle, max_speed=500):
     """
@@ -360,15 +377,14 @@ def get_detected_color(color_sensor):
 
     if s < 25 and v > 80:
         return "White"
-    if (h > 340 or h < 15) and s > 60:
+    if (h > 340 or h < 15) and s > 60 and v > 50:
         return "Red"
-    if 30 < h < 75 and s > 45:
+    if 30 < h < 75 and s > 45 and v > 50:
         return "Yellow"
-    if 110 < h < 170 and s > 50:
+    if 110 < h < 170 and s > 50 and v > 30:
         return "Green"
     
     return h, s, v
-print(get_detected_color(side_sensor))
 def scan_and_report_colors(db, color_sensor):
     """
     Scans 6 possible locations in a line to find four colored blocks.
@@ -392,7 +408,8 @@ def scan_and_report_colors(db, color_sensor):
     print("Starting color scan...")
 
     for position_index in range(1, 7):
-        gyroDriveStraight(db, distance=85)
+        gyroDriveStraight(db, distance=-95)
+        rebaseIMUAngle()
         
         color_readings = []
         for _ in range(10):
@@ -429,7 +446,7 @@ def oneWheelMotorTurn(
         angle,
         direction=1,
         hold=True,
-        speed=1000
+        speed=700
     ):
         rotation_angle = mmToDeg(2 * umath.pi * Axle_track * (abs(angle)/360))
 
@@ -451,7 +468,7 @@ def oneWheelMotorTurn(
             else:
                 #self.left_motor.run_target(speed, left_angle-rotation_angle, Stop.HOLD)
                 left_motor.run_angle(speed, -(rotation_angle), Stop.HOLD)
-def go_and_pickup(arrayOfPos, green=True):
+def go_and_pickup(arrayOfPos):
     """
     Drives to and picks up blocks in the exact order specified in the array.
     This version is optimized to be faster by eliminating unnecessary turns.
@@ -460,16 +477,10 @@ def go_and_pickup(arrayOfPos, green=True):
         arrayOfPos (list): A 0-indexed list with the positions [pos1, pos2, ...].
                            The robot will service the positions in this exact order.
     """
-    if green == True:
-        target_distances = {
-            1: 237.5, 2: 142.5, 3: 47.5,
-            4: -47.5,   5: -142.5,   6: -237.5,
-        }
-    else:
-        target_distances = {
+    target_distances = {
         1: -237.5, 2: -142.5, 3: -47.5,
         4: 47.5,   5: 142.5,   6: 237.5,
-        }
+    }
     
     APPROACH_DISTANCE = 158 
 
@@ -484,44 +495,46 @@ def go_and_pickup(arrayOfPos, green=True):
     current_x_position = 0
 
     print("Turning parallel to the line...")
+    wait(100)
+    turn(90)
+    rebaseIMUAngle()
 
     for position in positions_to_visit:
         target_dist = target_distances.get(position)
 
         distance_to_travel = target_dist - current_x_position
         print(f"Traveling {distance_to_travel:.1f}mm to position {position}...")
-        gyroDriveStraight(db, distance_to_travel, max_speed=400)
+        gyroDriveStraight(db, distance_to_travel, max_speed=300)
         current_x_position = target_dist
 
-        if green == True:
-            turn(90)
-        else:
-            turn(-90)
+        wait(100)
+        turn(-90)
+        rebaseIMUAngle()
         
         print("Approaching and grabbing block...")
-        claw.run_angle(100, 85)
-        gyroDriveStraight(db, -APPROACH_DISTANCE)
+        claw.run_angle(100, 80)
+        gyroDriveStraight(db, -APPROACH_DISTANCE, max_speed=400)
         claw.run_until_stalled(-300)
-        gyroDriveStraight(db, APPROACH_DISTANCE)
+        gyroDriveStraight(db, APPROACH_DISTANCE, max_speed=400)
+        claw.run_until_stalled(-300)
 
-        if green == True:
-            turn(-90)
-        else:
-            turn(90)
+        wait(100)
+        turn(90)
+        rebaseIMUAngle()
 
     print("All blocks collected. Returning to center...")
     return_distance = 0 - current_x_position
     gyroDriveStraight(db, return_distance, max_speed=400)
 
-    if green == True:
-        turn(90)
-    else:
-        turn(-90)
+    wait(100)
+    turn(-90)
+    rebaseIMUAngle()
     
     print("Optimized pickup mission complete.")
 
 
 """ For graph for KP values"""
+
 # while db.distance() < 200:
 #     singleSensorLinetrack("left")
 #     if db.distance() - last_logged_distance >= 10:
@@ -547,14 +560,14 @@ def go_and_pickup(arrayOfPos, green=True):
 # assuming +ve angle is right turn
 # claw.run_until_stalled(-300)
 # gyroDriveStraight(db, 80)
-# singleLineTrackByDist(50, Direction="left", current_speed=200)
+# singleLineTrackByDist(50, Direction="left")
 # singleLineTrackTillIntersection("Direction="left")
 # gyroDriveStraight(db, 95)
 # turn(-90)
 # rebaseIMUAngle()
 # wait(100)
-# singleLineTrackByDist(100)
-# singleLineTrackTillIntersection()
+# singleLineTrackByDist(100, max_speed=300)
+# singleLineTrackTillIntersection(baseSpeed=300)
 # gyroDriveStraight(db, 85)
 # wait(100)
 # rebaseIMUAngle()
@@ -583,117 +596,296 @@ def go_and_pickup(arrayOfPos, green=True):
 # turn(45)
 # rebaseIMUAngle()
 # wait(100)
-singleLineTrackByDist(200, "left")
+singleLineTrackByDist(200, "left", max_speed=300)
 singleLineTrackTillIntersection("left", baseSpeed=300)
-gyroDriveStraight(db, 140)
+gyroDriveStraight(db, 140, max_speed=300)
+wait(100)
+rebaseIMUAngle()
 turn(90)
+wait(100)
 rebaseIMUAngle()
 straightTillIntersection(db)
-gyroDriveStraight(db, 215)
+rebaseIMUAngle()
+gyroDriveStraight(db, 205, max_speed=300)
 claw.run_until_stalled(-300)
+wait(100)
 turn(90)
+wait(100)
 rebaseIMUAngle()
 db.straight(-200)
+wait(100)
 rebaseIMUAngle()
-gyroDriveStraight(db, 150)
+gyroDriveStraight(db, 90, max_speed=300)
+rebaseIMUAngle()
+wait(100)
+turn(180, max_speed=300)
+wait(100)
+gyroDriveStraight(db, -130, max_speed=300)
 green_white_array,  yellow_red_array = scan_and_report_colors(db, side_sensor)
-gyroDriveStraight(db, 230)
-turn(-90)
-gyroDriveStraight(db, -900, accel_dist=200, brake_dist=300)
-gyroDriveStraight(db, 1000, accel_dist=200, brake_dist=300)
-turn(-90)
-db.straight(-180)
-rebaseIMUAngle()
-gyroDriveStraight(db, 90)
+gyroDriveStraight(db, -50, max_speed=300)
+wait(100)
+oneWheelMotorTurn(db, -125, 90, speed=500)
+turn(90)
 straightTillIntersection(db)
-gyroDriveStraight(db, 80)
-if green_white_array != [None, None]:
-    green_white_pickup = []
-    green_white_pickup.append(green_white_array[1])
-    green_white_pickup.append(green_white_array[0])
-else:
-    green_white_pickup = [1, 2]
-if yellow_red_array != [None, None]:
-    yellow_white_pickup = []
-    yellow_white_pickup.append(yellow_red_array[1])
-    yellow_white_pickup.append(yellow_red_array[0])
-else:
-    yellow_white_pickup = [3, 4]
+gyroDriveStraight(db, 80, max_speed=300)
+wait(100)
+turn(90)
+yellow_white_pickup = []
+yellow_white_pickup.append(yellow_red_array[1])
+yellow_white_pickup.append(yellow_red_array[0])
+go_and_pickup(yellow_red_array)
+singleLineTrackByDist(100, "left", max_speed=300)
+singleLineTrackTillIntersection("left", baseSpeed=300)
+wait(100)
+turn(90)
+rebaseIMUAngle()
+gyroDriveStraight(db, 395, max_speed=300)
+wait(100)
+turn(-90, max_speed=300)
+gyroDriveStraight(db, -1200, brake_dist=400)
+gyroDriveStraight(db, 1200, brake_dist=400)
+straightTillIntersection(db)
+singleLineTrackByDist(100, "left", max_speed=300)
+#deposit yellow/red blocks 
+singleLineTrackTillIntersection("left", baseSpeed=300)
+wait(100)
+turn(-155)
+rebaseIMUAngle()
+gyroDriveStraight(db, -135)
+claw.run_until_stalled(100)
+claw.run_angle(100, -20)
+gyroDriveStraight(db, 55)
+claw.run_until_stalled(-100)
+
+gyroDriveStraight(db, 155, max_speed=300)
+wait(100)
+turn(-30)
+gyroDriveStraight(db, -205, max_speed=300)
+claw.run_until_stalled(100)
+claw.run_angle(100, -22)
+gyroDriveStraight(db, 100)
+claw.run_until_stalled(-100)
+
+wait(100)
+turn(-45)
+gyroDriveStraight(db, 50)
+wait(100)
+turn(45)
+singleLineTrackByDist(50)
+singleLineTrackTillIntersection(baseSpeed=300)
+
+gyroDriveStraight(db, 500)
+wait(100)
+turn(90)
+rebaseIMUAngle()
+db.straight(-250)
+rebaseIMUAngle()
+straightTillIntersection(db)
+gyroDriveStraight(db, 100)
+wait(100)
+turn(90)
+gyroDriveStraight(db, -50)
+green_white_pickup = []
+green_white_pickup.append(green_white_array[1])
+green_white_pickup.append(green_white_array[0])
 go_and_pickup(green_white_pickup)
 
 #deposit blocks 
-singleLineTrackByDist(100, "left", current_speed=200)
-singleLineTrackTillIntersection("left")
+singleLineTrackByDist(50, "left", max_speed=300)
+singleLineTrackTillIntersection("left", baseSpeed=300)
 gyroDriveStraight(db, 100)
+wait(100)
 turn(-90)
-gyroDriveStraight(db, 350, accel_dist=50)
+rebaseIMUAngle()
+gyroDriveStraight(db, 355)
+wait(100)
 turn(90)
+rebaseIMUAngle()
 straightTillIntersection(db)
-singleLineTrackByDist(100, "left", current_speed=300)
+singleLineTrackByDist(100, "left", max_speed=300)
 #deposit green/white blocks 
 singleLineTrackTillIntersection("left", baseSpeed=300)
+wait(100)
 turn(-155)
+rebaseIMUAngle()
 gyroDriveStraight(db, -135)
-claw.run_angle(100, 82)
+claw.run_until_stalled(100)
+claw.run_angle(100, -20)
 gyroDriveStraight(db, 55)
-claw.run_angle(100, -82)
+claw.run_until_stalled(-100)
 
 gyroDriveStraight(db, 155)
+wait(100)
 turn(-30)
 gyroDriveStraight(db, -205)
-claw.run_angle(100, 82)
+claw.run_until_stalled(100)
+claw.run_angle(100, -22)
 gyroDriveStraight(db, 100)
-claw.run_angle(100, -82)
+claw.run_until_stalled(-100)
 
+wait(100)
 turn(-45)
 gyroDriveStraight(db, 50)
+wait(100)
 turn(45)
-singleLineTrackByDist(100, current_speed=200)
-singleLineTrackTillIntersection()
-
-gyroDriveStraight(db, 530)
-turn(-90)
-rebaseIMUAngle()
-db.straight(-250)
-rebaseIMUAngle()
-straightTillIntersection(db)
-gyroDriveStraight(db, 80)
-go_and_pickup(yellow_white_pickup, False)
-
-#deposit blocks 
-singleLineTrackByDist(100, "right", current_speed=300)
-singleLineTrackTillIntersection("right", baseSpeed=300)
-turn(90)
-gyroDriveStraight(db, 365, max_speed=600, accel_dist=85)
-turn(-90)
-straightTillIntersection(db)
-singleLineTrackByDist(100, "left", current_speed=300)
-#deposit yellow/red blocks 
-singleLineTrackTillIntersection("left", baseSpeed=300)
-turn(-155)
-gyroDriveStraight(db, -135)
-claw.run_angle(100, 82)
-gyroDriveStraight(db, 55)
-claw.run_angle(100, -82)
-
-gyroDriveStraight(db, 155)
-turn(-30)
-gyroDriveStraight(db, -205)
-claw.run_angle(100, 82)
-gyroDriveStraight(db, 100)
-claw.run_angle(100, -82)
-
-turn(-45)
-gyroDriveStraight(db, 50)
-turn(45)
-singleLineTrackByDist(100, current_speed=200)
-singleLineTrackTillIntersection()
+singleLineTrackByDist(50, max_speed=300)
+singleLineTrackTillIntersection(baseSpeed=300)
 
 gyroDriveStraight(db, 500)
-turn(90)
+wait(100)
+turn(-90)
+rebaseIMUAngle()
 db.straight(-250)
 rebaseIMUAngle()
 straightTillIntersection(db)
 gyroDriveStraight(db, 80)
-turn(90)
+wait(100)
+turn(-90)
+gyroDriveStraight(db, -50)
+rebaseIMUAngle()
+
+singleLineTrackByDist(50, max_speed=300)
+singleLineTrackTillIntersection(baseSpeed=300)
 gyroDriveStraight(db, 700)
+
+# rebaseIMUAngle()
+# wait(100)
+# turn(180)
+# rebaseIMUAngle()
+# gyroDriveStraight(db, -300, max_speed=300, accel_dist=200, brake_dist=300)
+# rebaseIMUAngle()
+# claw.run_until_stalled(300)
+# rebaseIMUAngle()
+# wait(100)
+# gyroDriveStraight(db, -700, max_speed=300, accel_dist=200, brake_dist=300)
+# rebaseIMUAngle()
+# wait(100)
+# claw.run_until_stalled(-300)
+# gyroDriveStraight(db, 700, max_speed=300, accel_dist=200, brake_dist=300)
+# rebaseIMUAngle()
+# wait(100)
+# gyroDriveStraight(db, 300, max_speed=300, accel_dist=200, brake_dist=300)
+# rebaseIMUAngle()
+# wait(100)
+# turn(-90)
+# db.straight(-180)
+# rebaseIMUAngle()
+# gyroDriveStraight(db, 90)
+# straightTillIntersection(db)
+# gyroDriveStraight(db, 80)
+# wait(100)
+# turn(90)
+# green_white_pickup = []
+# green_white_pickup.append(green_white_array[1])
+# green_white_pickup.append(green_white_array[0])
+# yellow_white_pickup = []
+# yellow_white_pickup.append(yellow_red_array[1])
+# yellow_white_pickup.append(yellow_red_array[0])
+# go_and_pickup(green_white_pickup)
+
+# #deposit blocks 
+# singleLineTrackByDist(50, "left", max_speed=300)
+# singleLineTrackTillIntersection("left", baseSpeed=300)
+# gyroDriveStraight(db, 100)
+# wait(100)
+# turn(-90)
+# rebaseIMUAngle()
+# gyroDriveStraight(db, 355)
+# wait(100)
+# turn(90)
+# rebaseIMUAngle()
+# straightTillIntersection(db)
+# singleLineTrackByDist(100, "left", max_speed=300)
+# #deposit green/white blocks 
+# singleLineTrackTillIntersection("left", baseSpeed=300)
+# wait(100)
+# turn(-155)
+# rebaseIMUAngle()
+# gyroDriveStraight(db, -135)
+# claw.run_until_stalled(100)
+# claw.run_angle(100, -20)
+# gyroDriveStraight(db, 55)
+# claw.run_until_stalled(-100)
+
+# gyroDriveStraight(db, 155)
+# wait(100)
+# turn(-30)
+# gyroDriveStraight(db, -205)
+# claw.run_until_stalled(100)
+# claw.run_angle(100, -22)
+# gyroDriveStraight(db, 100)
+# claw.run_until_stalled(-100)
+
+# wait(100)
+# turn(-45)
+# gyroDriveStraight(db, 50)
+# wait(100)
+# turn(45)
+# singleLineTrackByDist(50, max_speed=300)
+# singleLineTrackTillIntersection(baseSpeed=300)
+
+# gyroDriveStraight(db, 500)
+# wait(100)
+# turn(-90)
+# rebaseIMUAngle()
+# db.straight(-250)
+# rebaseIMUAngle()
+# straightTillIntersection(db)
+# gyroDriveStraight(db, 80)
+# wait(100)
+# turn(-90)
+# gyroDriveStraight(db, -50)
+# rebaseIMUAngle()
+# go_and_pickup(yellow_red_array)
+
+# #deposit blocks 
+# singleLineTrackByDist(100, "left", max_speed=300)
+# singleLineTrackTillIntersection("left", baseSpeed=300)
+# wait(100)
+# turn(90)
+# rebaseIMUAngle()
+# gyroDriveStraight(db, 385)
+# wait(100)
+# turn(-90)
+# rebaseIMUAngle()
+# straightTillIntersection(db)
+# singleLineTrackByDist(100, "left", max_speed=300)
+# #deposit yellow/red blocks 
+# singleLineTrackTillIntersection("left", baseSpeed=300)
+# wait(100)
+# turn(-155)
+# rebaseIMUAngle()
+# gyroDriveStraight(db, -135)
+# claw.run_until_stalled(100)
+# claw.run_angle(100, -20)
+# gyroDriveStraight(db, 55)
+# claw.run_until_stalled(-100)
+
+# gyroDriveStraight(db, 155)
+# wait(100)
+# turn(-30)
+# gyroDriveStraight(db, -205)
+# claw.run_until_stalled(100)
+# claw.run_angle(100, -22)
+# gyroDriveStraight(db, 100)
+# claw.run_until_stalled(-100)
+
+# wait(100)
+# turn(-45)
+# gyroDriveStraight(db, 50)
+# wait(100)
+# turn(45)
+# singleLineTrackByDist(50)
+# singleLineTrackTillIntersection(baseSpeed=300)
+
+# gyroDriveStraight(db, 500)
+# wait(100)
+# turn(90)
+# rebaseIMUAngle()
+# db.straight(-250)
+# rebaseIMUAngle()
+# straightTillIntersection(db)
+# gyroDriveStraight(db, 100)
+# wait(100)
+# turn(90)
+# gyroDriveStraight(db, 500)
